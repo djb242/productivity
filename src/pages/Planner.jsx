@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo } from 'react'
 import { occursOnDate } from '../lib/schedule'
 
 
@@ -6,11 +6,19 @@ export default function Planner({ state, navigate }){
 const { tasks, schedules } = state
 
 
-const scheduleFor = (taskId)=> schedules.find(s=>s.taskId===taskId)||null
-const candidates = useMemo(()=> tasks
-.map(t => ({ task:t, schedule: scheduleFor(t.id) }))
-.filter(({schedule}) => schedule && occursOnDate(schedule, new Date()))
-,[tasks, schedules])
+const scheduleFor = useCallback(
+  (taskId) => schedules.find(s => s.taskId === taskId) || null,
+  [schedules]
+)
+const candidates = useMemo(
+  () =>
+    tasks
+      .map(t => ({ task: t, schedule: scheduleFor(t.id) }))
+      .filter(
+        ({ schedule }) => schedule && occursOnDate(schedule, new Date())
+      ),
+  [tasks, scheduleFor]
+)
 
 
 return (

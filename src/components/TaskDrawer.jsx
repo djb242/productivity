@@ -1,68 +1,121 @@
-import React from 'react'
-import { WEEKDAYS } from '../lib/schedule'
+import React, { useState } from 'react'
+import ScheduleEditor from './ScheduleEditor.jsx'
 
+const styles = {
+  overlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(0,0,0,0.5)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  drawer: {
+    background: '#1f2937',
+    border: '1px solid #374151',
+    borderRadius: 12,
+    padding: 16,
+    width: 400,
+    maxHeight: '80vh',
+    overflowY: 'auto'
+  },
+  section: { marginTop: 16 }
+}
 
-export default function ScheduleEditor({ schedule, onChange }){
-const s = schedule || { kind:'once', durationMinutes:60, weeklyByDay:null, earliestStart:null, latestStart:null, rrule:'' };
-const set = (patch)=> onChange({ ...s, ...patch });
+export default function TaskDrawer({
+  task,
+  schedule,
+  onClose,
+  onPatch,
+  onToggleSub,
+  onAddSub,
+  onDelete,
+  onSaveSchedule
+}) {
+  const [title, setTitle] = useState(task.title)
+  const [newSub, setNewSub] = useState('')
 
+  const commit = () => {
+    if (title !== task.title) onPatch({ title })
+  }
 
-const chip = (active)=>({ padding:'4px 8px', borderRadius:999, border:`1px solid ${active?'#60a5fa':'#334155'}`, opacity:active?1:.8, cursor:'pointer' });
+  const submitSub = e => {
+    e.preventDefault()
+    const t = newSub.trim()
+    if (t) onAddSub(t)
+    setNewSub('')
+  }
 
+  return (
+    <div style={styles.overlay}>
+      <div style={styles.drawer}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ fontWeight: 700 }}>Edit Task</div>
+          <button onClick={onClose}>Close</button>
+        </div>
 
-return (
-<div>
-<div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-<div>
-<label style={{ fontSize:12, opacity:.8 }}>Kind</label>
-<select value={s.kind} onChange={e=> set({ kind: e.target.value })} style={fld}>
-<option value="once">One-time</option>
-<option value="daily">Daily</option>
-<option value="weekly">Weekly</option>
-<option value="custom_rrule">Custom RRULE</option>
-</select>
-</div>
-<div>
-<label style={{ fontSize:12, opacity:.8 }}>Duration (minutes)</label>
-<input type="number" min={5} step={5} value={s.durationMinutes||60} onChange={e=> set({ durationMinutes: Number(e.target.value)||60 })} style={fld} />
-</div>
-</div>
+        <div style={styles.section}>
+          <label style={{ display: 'block', fontSize: 12, opacity: 0.8 }}>
+            Title
+          </label>
+          <input
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            onBlur={commit}
+            style={{ width: '100%', padding: 6, borderRadius: 6 }}
+          />
 
+          {task.subtasks && (
+          <div style={styles.section}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Subtasks</div>
+            {task.subtasks.map(s => (
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={s.done}
+                  onChange={() => onToggleSub(s.id)}
+                />
+                <div>{s.title}</div>
+              </div>
+            ))}
+            <form onSubmit={submitSub} style={{ marginTop: 4 }}>
+              <input
+                value={newSub}
+                onChange={e => setNewSub(e.target.value)}
+                placeholder="New subtask"
+                style={{ padding: 4, width: '70%' }}
+              />
+              <button type="submit" style={{ marginLeft: 8 }}>
+                Add
+              </button>
+            </form>
+          </div>
+        )}
 
-{s.kind==='weekly' && (
-<div style={{ marginTop:8 }}>
-<label style={{ fontSize:12, opacity:.8 }}>Days</label>
-<div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:6 }}>
-{WEEKDAYS.map(code=>{
-const cur = new Set(s.weeklyByDay||[]);
-const active = cur.has(code);
-return (
-<span key={code} style={chip(active)} onClick={()=>{ active?cur.delete(code):cur.add(code); set({ weeklyByDay: Array.from(cur) }) }}>{code}</span>
-);
-})}
-</div>
-</div>
-)}
+         <div style={styles.section}>
+          <ScheduleEditor schedule={schedule} onChange={onSaveSchedule} />
+        </div>
 
-
-{s.kind==='custom_rrule' && (
-<div style={{ marginTop:8 }}>
-<label style={{ fontSize:12, opacity:.8 }}>RRULE (e.g., FREQ=WEEKLY;BYDAY=MO,WE)</label>
-<input value={s.rrule||''} onChange={e=> set({ rrule: e.target.value })} style={fld} />
-</div>
-)}
-
-
-<div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginTop:8 }}>
-<div>
-<label style={{ fontSize:12, opacity:.8 }}>Earliest start (optional)</label>
-<input type="time" value={s.earliestStart||''} onChange={e=> set({ earliestStart: e.target.value||null })} style={fld} />
-</div>
-<div>
-<label style={{ fontSize:12, opacity:.8 }}>Latest start (optional)</label>
-<input type="time" value={s.latestStart||''} onChange={e=> set({ latestStart: e.target.value||null })} style={fld} />
-</div>
-</div>
-</div>
-)
-const fld = { width:'100%', background:'#0b1220', border:'1px solid #374151', color:'#e5e7eb', padding:8, borderRadius:10 }
+        <div style={styles.section}>
+          <button
+            onClick={onDelete}
+            style={{
+              background: '#7f1d1d',
+              color: '#fecaca',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: 8,
+              cursor: 'pointer'
+            }}
+          >
+            Delete Task
+          </button>
+        </div>
+      </div>
+    </div>
+    </div>
+  )
+}
