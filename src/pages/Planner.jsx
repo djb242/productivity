@@ -13,7 +13,7 @@ export default function Planner({ state, navigate }) {
     () =>
       tasks
         .map(t => ({ task: t, schedule: scheduleFor(t.id) }))
-        .filter(({ schedule }) => schedule && occursOnDate(schedule, new Date())),
+        .filter(({ schedule }) => !schedule || occursOnDate(schedule, new Date())),
     [tasks, scheduleFor]
   )
 
