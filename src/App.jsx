@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import Organizer from './pages/Organizer.jsx'
+import Goals from './pages/Goals.jsx'
 import Planner from './pages/Planner.jsx'
 import { seedCategories, seedGoals, seedTasks, seedSchedules } from './lib/seeds.js'
 
@@ -16,7 +16,7 @@ const [bgMode, setBgMode] = useState('color')
 const [bgValue, setBgValue] = useState('linear-gradient(135deg,#0f172a,#1f2937)')
 
 
-const [page, setPage] = useState('organizer') // 'organizer' | 'planner'
+const [page, setPage] = useState('goals') // 'goals' | 'planner'
 const navigate = (p)=> setPage(p)
 
 
@@ -24,7 +24,7 @@ const state = { categories, goals, tasks, schedules, bgMode, bgValue }
 const actions = { setCategories, setGoals, setTasks, setSchedules, setBgMode, setBgValue }
 
 
-return page==='organizer'
-? <Organizer state={state} actions={actions} navigate={navigate} />
+return page==='goals'
+? <Goals state={state} actions={actions} navigate={navigate} />
 : <Planner state={state} navigate={navigate} />
 }
