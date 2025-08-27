@@ -44,6 +44,7 @@ export default function Planner({ state, actions, navigate }) {
   const [scheduled, setScheduled] = useState([]) // { item, start, duration }
   const [hoverSlot, setHoverSlot] = useState(null)
   const [dragPreview, setDragPreview] = useState(null)
+  const [resizing, setResizing] = useState(null)
 
   const dropItem = (slotIndex, data) => {
     const start = slotIndex * (resolution / 15)
@@ -71,6 +72,23 @@ export default function Planner({ state, actions, navigate }) {
     )
     setDragPreview({ item: si.item, slot: null })
   }
+
+  const startResize = (e, id) => {
+    e.preventDefault()
+    setResizing({ id, startY: e.clientY })
+  }
+
+  const handleMouseMove = e => {
+    if (!resizing) return
+    const delta = e.clientY - resizing.startY
+    const steps = Math.round(delta / 10)
+    if (steps !== 0) {
+      adjustDuration(resizing.id, steps)
+      setResizing({ id: resizing.id, startY: e.clientY })
+    }
+  }
+
+  const stopResize = () => setResizing(null)
 
   const adjustDuration = (id, delta) => {
     setScheduled(prev =>
@@ -177,6 +195,9 @@ export default function Planner({ state, actions, navigate }) {
         </aside>
 
         <main
+          onMouseMove={handleMouseMove}
+          onMouseUp={stopResize}
+          onMouseLeave={stopResize}
           style={{
             background: 'rgba(255,255,255,0.04)',
             border: '1px solid #000',
@@ -211,43 +232,67 @@ export default function Planner({ state, actions, navigate }) {
             </div>
           ))}
 
-          {scheduled.map(si => (
-            <div
-              key={si.item.id}
-              draggable
-              onDragStart={e => handleDragStartScheduled(e, si)}
-              onDragEnd={() => {
-                setDragPreview(null)
-                setHoverSlot(null)
-              }}
-              style={{
-                position: 'absolute',
-                left: 8,
-                right: 8,
-                top: si.start * 10,
-                height: si.duration * 10 - 2,
-                background: '#1e3a8a',
-                borderRadius: 6,
-                padding: 4
-              }}
-            >
-              <div>
-                {timeLabel(si.start * (resolution / 15))} – {si.item.title}
-              </div>
-              <div>{si.item.title}</div>
-              <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                <button onClick={() => adjustDuration(si.item.id, -1)}>−</button>
-                <button onClick={() => adjustDuration(si.item.id, 1)}>+</button>
-                <button
-                  onClick={() => markComplete(si.item)}
-                  style={{ marginLeft: 'auto' }}
+          {scheduled.map(si => {
+            const slotSize = resolution / 15
+            const startBorder = Math.floor(si.start / slotSize)
+            const endBorder = Math.floor((si.start + si.duration) / slotSize)
+            const topPx = si.start * 10 + startBorder
+            const heightPx = si.duration * 10 + (endBorder - startBorder) - 2
+            return (
+              <div
+                key={si.item.id}
+                draggable
+                onDragStart={e => handleDragStartScheduled(e, si)}
+                onDragEnd={() => {
+                  setDragPreview(null)
+                  setHoverSlot(null)
+                }}
+                style={{
+                  position: 'absolute',
+                  left: 8,
+                  right: 8,
+                  top: topPx,
+                  height: heightPx,
+                  background: '#1e3a8a',
+                  borderRadius: 6,
+                  padding: 4,
+                  overflow: 'hidden'
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}    
                 >
-                  Done
-                </button>
+                  <input
+                    type="checkbox"
+                    onChange={() => markComplete(si.item)}
+                    style={{ margin: 0 }}
+                  />
+                  <span>
+                    {timeLabel(si.start / (resolution / 15))} – {si.item.title}
+                  </span>
+                </div>
+                <div
+                  onMouseDown={e => startResize(e, si.item.id)}
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: 4,
+                    cursor: 'ns-resize'
+                  }}
+                />
               </div>
-            </div>
-          ))}
-
+            )
+          })}
+          
           {dragPreview && dragPreview.slot !== null && (
             <div
               style={{
