@@ -14,8 +14,9 @@ const styles = {
     alignItems: 'center'
   },
   drawer: {
-    background: '#1f2937',
-    border: '1px solid #374151',
+    background: '#fff',
+    border: '1px solid #000',
+    color: '#000',
     borderRadius: 12,
     padding: 16,
     width: 400,
@@ -32,6 +33,7 @@ export default function TaskDrawer({
   onPatch,
   onToggleSub,
   onAddSub,
+  onRenameSub,
   onDelete,
   onSaveSchedule
 }) {
@@ -67,55 +69,48 @@ export default function TaskDrawer({
             onBlur={commit}
             style={{ width: '100%', padding: 6, borderRadius: 6 }}
           />
+        </div>
 
-          {task.subtasks && (
           <div style={styles.section}>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>Subtasks</div>
-            {task.subtasks.map(s => (
-              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={s.done}
-                  onChange={() => onToggleSub(s.id)}
-                />
-                <div>{s.title}</div>
-              </div>
-            ))}
-            <form onSubmit={submitSub} style={{ marginTop: 4 }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Subtasks</div>
+          {(task.subtasks || []).map(s => (
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
-                value={newSub}
-                onChange={e => setNewSub(e.target.value)}
-                placeholder="New subtask"
-                style={{ padding: 4, width: '70%' }}
+                type="checkbox"
+                checked={s.done}
+                onChange={() => onToggleSub(s.id)}
               />
               <button type="submit" style={{ marginLeft: 8 }}>
                 Add
               </button>
-            </form>
-          </div>
-        )}
+            </div>
+          ))}
+          <form onSubmit={submitSub} style={{ marginTop: 4 }}>
+            <input
+              value={newSub}
+              onChange={e => setNewSub(e.target.value)}
+              placeholder="New subtask"
+              style={{ padding: 4, width: '70%' }}
+            />
+            <button type="submit" style={{ marginLeft: 8 }}>
+              Add
+            </button>
+          </form>
+        </div>
 
-         <div style={styles.section}>
+        <div style={styles.section}>
           <ScheduleEditor schedule={schedule} onChange={onSaveSchedule} />
         </div>
 
         <div style={styles.section}>
           <button
             onClick={onDelete}
-            style={{
-              background: '#7f1d1d',
-              color: '#fecaca',
-              border: 'none',
-              padding: '6px 12px',
-              borderRadius: 8,
-              cursor: 'pointer'
-            }}
+            style={{ border: '1px solid #000' }}
           >
             Delete Task
           </button>
         </div>
       </div>
     </div>
-   </div>
   )
 }

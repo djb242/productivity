@@ -3,9 +3,9 @@ import { WEEKDAYS } from '../lib/schedule'
 
 const fld = {
   width: '100%',
-  background: '#0b1220',
-  border: '1px solid #374151',
-  color: '#e5e7eb',
+  background: '#fff',
+  border: '1px solid #000',
+  color: '#000',
   padding: 8,
   borderRadius: 10
 }
@@ -13,8 +13,9 @@ const fld = {
 const chip = active => ({
   padding: '4px 8px',
   borderRadius: 999,
-  border: `1px solid ${active ? '#60a5fa' : '#334155'}`,
-  opacity: active ? 1 : 0.8,
+  border: '1px solid #000',
+  background: '#fff',
+  opacity: active ? 1 : 0.5,
   cursor: 'pointer'
 })
 

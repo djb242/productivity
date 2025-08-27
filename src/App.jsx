@@ -26,5 +26,5 @@ const actions = { setCategories, setGoals, setTasks, setSchedules, setBgMode, se
 
 return page==='goals'
 ? <Goals state={state} actions={actions} navigate={navigate} />
-: <Planner state={state} navigate={navigate} />
+: <Planner state={state} actions={actions} navigate={navigate} />
 }
