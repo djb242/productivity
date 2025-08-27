@@ -33,7 +33,6 @@ export default function TaskDrawer({
   onPatch,
   onToggleSub,
   onAddSub,
-  onRenameSub,
   onDelete,
   onSaveSchedule
 }) {

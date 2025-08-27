@@ -42,6 +42,8 @@ export default function Planner({ state, actions, navigate }) {
 
   // scheduled items stored at 15 min granularity
   const [scheduled, setScheduled] = useState([]) // { item, start, duration }
+  const [hoverSlot, setHoverSlot] = useState(null)
+  const [dragPreview, setDragPreview] = useState(null)
 
   const dropItem = (slotIndex, data) => {
     const start = slotIndex * (resolution / 15)
@@ -58,6 +60,8 @@ export default function Planner({ state, actions, navigate }) {
     e.preventDefault()
     const data = JSON.parse(e.dataTransfer.getData('text'))
     dropItem(i, data)
+    setHoverSlot(null)
+    setDragPreview(null)
   }
 
   const handleDragStartScheduled = (e, si) => {
@@ -65,6 +69,7 @@ export default function Planner({ state, actions, navigate }) {
       'text/plain',
       JSON.stringify({ ...si.item, moveId: si.item.id })
     )
+    setDragPreview({ item: si.item, slot: null })
   }
 
   const adjustDuration = (id, delta) => {
@@ -138,9 +143,14 @@ export default function Planner({ state, actions, navigate }) {
             <div
               key={it.id}
               draggable
-              onDragStart={e =>
+              onDragStart={e => {
                 e.dataTransfer.setData('text/plain', JSON.stringify(it))
-              }
+                setDragPreview({ item: it, slot: null })
+              }}
+              onDragEnd={() => {
+                setDragPreview(null)
+                setHoverSlot(null)
+              }}
               style={{
                 border: '1px solid #000',
                 borderRadius: 10,
@@ -179,12 +189,20 @@ export default function Planner({ state, actions, navigate }) {
           {Array.from({ length: totalSlots }).map((_, i) => (
             <div
               key={i}
-              onDragOver={e => e.preventDefault()}
+              onDragEnter={() => setHoverSlot(i)}
+              onDragLeave={() => setHoverSlot(null)}
+              onDragOver={e => {
+                e.preventDefault()
+                setDragPreview(prev =>
+                  prev ? { ...prev, slot: i } : prev
+                )
+              }}
               onDrop={e => handleDrop(i, e)}
               style={{
                 height: slotHeight,
                 borderBottom: '1px solid #374151',
-                position: 'relative'
+                position: 'relative',
+                background: hoverSlot === i ? '#bfdbfe' : undefined
               }}
             >
               {i % (60 / resolution) === 0 && (
@@ -198,6 +216,10 @@ export default function Planner({ state, actions, navigate }) {
               key={si.item.id}
               draggable
               onDragStart={e => handleDragStartScheduled(e, si)}
+              onDragEnd={() => {
+                setDragPreview(null)
+                setHoverSlot(null)
+              }}
               style={{
                 position: 'absolute',
                 left: 8,
@@ -209,6 +231,9 @@ export default function Planner({ state, actions, navigate }) {
                 padding: 4
               }}
             >
+              <div>
+                {timeLabel(si.start * (resolution / 15))} – {si.item.title}
+              </div>
               <div>{si.item.title}</div>
               <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
                 <button onClick={() => adjustDuration(si.item.id, -1)}>−</button>
@@ -222,6 +247,27 @@ export default function Planner({ state, actions, navigate }) {
               </div>
             </div>
           ))}
+
+          {dragPreview && dragPreview.slot !== null && (
+            <div
+              style={{
+                position: 'absolute',
+                left: 8,
+                right: 8,
+                top: dragPreview.slot * slotHeight,
+                height:
+                  ((dragPreview.item.duration || 4) * 10 - 2),
+                background: 'rgba(30,58,138,0.3)',
+                borderRadius: 6,
+                padding: 4,
+                pointerEvents: 'none'
+              }}
+            >
+              <div>
+                {timeLabel(dragPreview.slot)} – {dragPreview.item.title}
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>
