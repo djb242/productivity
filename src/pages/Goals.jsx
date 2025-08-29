@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import TaskDrawer from '../components/TaskDrawer.jsx'
+import { db } from '../lib/db.js'
 
 export default function Goals({ state, actions, navigate }) {
   const { categories, goals, tasks, schedules } = state
@@ -18,7 +19,10 @@ export default function Goals({ state, actions, navigate }) {
 
   const updateTask = (id, patch) =>
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, ...patch } : t)))
-  const deleteTask = id => setTasks(prev => prev.filter(t => t.id !== id))
+  const deleteTask = id => {
+    setTasks(prev => prev.filter(t => t.id !== id))
+    db.deleteTaskCascade(id).catch(() => {})
+  }
 
   const addCategory = name =>
     setCategories(prev => [...prev, { id: rand(), name, color: '#fff' }])
@@ -38,9 +42,7 @@ export default function Goals({ state, actions, navigate }) {
         t.id === tid
           ? {
               ...t,
-              subtasks: (t.subtasks || []).map(s =>
-                s.id === sid ? { ...s, title } : s
-              )
+              subtasks: (t.subtasks || []).map(s => (s.id === sid ? { ...s, title } : s))
             }
           : t
       )
@@ -52,9 +54,7 @@ export default function Goals({ state, actions, navigate }) {
         t.id === tid
           ? {
               ...t,
-              subtasks: (t.subtasks || []).map(s =>
-                s.id === sid ? { ...s, done: !s.done } : s
-              )
+              subtasks: (t.subtasks || []).map(s => (s.id === sid ? { ...s, done: !s.done } : s))
             }
           : t
       )
@@ -72,12 +72,14 @@ export default function Goals({ state, actions, navigate }) {
       )
     )
 
-  const upsertScheduleForTask = (tid, patch) =>
+  const upsertScheduleForTask = (tid, patch) => {
     setSchedules(prev => {
       const ex = prev.find(s => s.taskId === tid)
       if (ex) return prev.map(s => (s.taskId === tid ? { ...ex, ...patch } : s))
       return [...prev, { id: Math.random().toString(36).slice(2), taskId: tid, ...patch }]
     })
+    db.upsertScheduleForTask(tid, patch).catch(() => {})
+  }
 
   const tasksForGoal = tasks.filter(t => t.goalId === goalId)
 
@@ -85,32 +87,56 @@ export default function Goals({ state, actions, navigate }) {
     <div
       style={{
         minHeight: '100vh',
-        background: '#fff',
-        color: '#000',
+        background: 'var(--bg)',
+        color: 'var(--text)',
         padding: 24,
-        fontFamily:
-          'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, sans-serif'
+        maxWidth: 1200,
+        margin: '0 auto'
       }}
     >
-      <header style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
+      <header
+        style={{
+          display: 'flex',
+          gap: 12,
+          alignItems: 'center',
+          marginBottom: 16,
+          padding: 10,
+          border: '1px solid var(--border)',
+          borderRadius: 12,
+          background: 'var(--surface-elev)',
+          boxShadow: '0 1px 3px rgba(15,23,42,0.08)'
+        }}
+      >
         <div style={{ fontSize: 24, fontWeight: 700 }}>Goals</div>
         <button onClick={() => navigate('planner')} style={{ marginLeft: 'auto' }}>
-          Go to Planner
+          Planner
         </button>
+        <button onClick={() => navigate('habits')}>Habits</button>
       </header>
 
       {!categoryId && (
-         <div>
+        <div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             {categories.map(c => (
               <div
                 key={c.id}
                 onClick={() => setCategoryId(c.id)}
                 style={{
-                  border: '1px solid #000',
+                  border: '1px solid var(--border)',
                   padding: 16,
                   borderRadius: 12,
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  background: 'var(--surface)',
+                  boxShadow: '0 1px 2px rgba(15,23,42,0.06)',
+                  transition: 'transform 120ms ease, box-shadow 120ms ease'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-1px)'
+                  e.currentTarget.style.boxShadow = '0 6px 14px rgba(15,23,42,0.10)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = ''
+                  e.currentTarget.style.boxShadow = '0 1px 2px rgba(15,23,42,0.06)'
                 }}
               >
                 {c.name}
@@ -143,9 +169,7 @@ export default function Goals({ state, actions, navigate }) {
               onChange={e => setNewCategory(e.target.value)}
               placeholder="New category"
             />
-            <button type="submit" style={{ marginLeft: 8 }}>
-              Add
-            </button>
+            <button type="submit" style={{ marginLeft: 8 }}>Add</button>
           </form>
         </div>
       )}
@@ -163,10 +187,21 @@ export default function Goals({ state, actions, navigate }) {
                   key={g.id}
                   onClick={() => setGoalId(g.id)}
                   style={{
-                    border: '1px solid #000',
+                    border: '1px solid var(--border)',
                     padding: 12,
                     borderRadius: 12,
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    background: 'var(--surface)',
+                    boxShadow: '0 1px 2px rgba(15,23,42,0.06)',
+                    transition: 'transform 120ms ease, box-shadow 120ms ease'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.transform = 'translateY(-1px)'
+                    e.currentTarget.style.boxShadow = '0 6px 14px rgba(15,23,42,0.10)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.transform = ''
+                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(15,23,42,0.06)'
                   }}
                 >
                   {g.title}
@@ -179,7 +214,7 @@ export default function Goals({ state, actions, navigate }) {
                     style={{ marginLeft: 8 }}
                   >
                     Edit
-                  </button>                  
+                  </button>
                 </div>
               ))}
           </div>
@@ -199,9 +234,7 @@ export default function Goals({ state, actions, navigate }) {
               onChange={e => setNewGoal(e.target.value)}
               placeholder="New goal"
             />
-            <button type="submit" style={{ marginLeft: 8 }}>
-              Add
-            </button>
+            <button type="submit" style={{ marginLeft: 8 }}>Add</button>
           </form>
         </div>
       )}
@@ -227,33 +260,29 @@ export default function Goals({ state, actions, navigate }) {
               onChange={e => setNewTask(e.target.value)}
               placeholder="New task"
             />
-            <button type="submit" style={{ marginLeft: 8 }}>
-              Add
-            </button>
+            <button type="submit" style={{ marginLeft: 8 }}>Add</button>
           </form>
           <div>
             {tasksForGoal.map(t => (
               <div
                 key={t.id}
                 style={{
-                  border: '1px solid #000',
+                  border: '1px solid var(--border)',
                   borderRadius: 12,
                   padding: 12,
-                  marginBottom: 8
+                  marginBottom: 8,
+                  background: 'var(--surface)',
+                  boxShadow: '0 1px 2px rgba(15,23,42,0.06)'
                 }}
               >
-                <div
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>{t.title}</div>
                   <button onClick={() => setOpenTaskId(t.id)}>Edit</button>
                 </div>
                 {(t.subtasks || []).length > 0 && (
                   <ul style={{ marginTop: 8 }}>
                     {(t.subtasks || []).map(s => (
-                      <li key={s.id} style={{ opacity: s.done ? 0.6 : 1 }}>
-                        {s.title}
-                      </li>
+                      <li key={s.id} style={{ opacity: s.done ? 0.6 : 1 }}>{s.title}</li>
                     ))}
                   </ul>
                 )}

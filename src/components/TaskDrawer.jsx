@@ -101,6 +101,22 @@ export default function TaskDrawer({
           <ScheduleEditor schedule={schedule} onChange={onSaveSchedule} />
         </div>
 
+        {schedule && schedule.kind !== 'once' && (
+          <div style={styles.section}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={!!task.habitTrack}
+                onChange={e => onPatch({ habitTrack: e.target.checked })}
+              />
+              Track as habit
+            </label>
+            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
+              When checked, completions log to the Habits page instead of marking the task done.
+            </div>
+          </div>
+        )}
+
         <div style={styles.section}>
           <button
             onClick={onDelete}

@@ -1,14 +1,30 @@
-# React + Vite
+# Productivity App (React + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This app can persist data to Supabase. By default it uses a dedicated Postgres schema named `productivity` so your app tables stay isolated from other projects.
 
-Currently, two official plugins are available:
+## Supabase Setup
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Required env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+- Optional: `VITE_SUPABASE_SCHEMA` (defaults to `productivity`).
 
-## Expanding the ESLint configuration
+1) Expose the schema to the API
+- In Supabase Studio: Database → API → REST → Exposed schemas → add `productivity`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+2) Create the schema and tables
+- Open Supabase Studio → SQL editor
+- Paste and run the contents of `supabase/schema.sql`
+  - This script creates the `productivity` schema (if missing), sets the search path, and creates all tables and indexes used by the app.
 
-Poopoo Peepee
+3) Configure environment variables
+- Copy `.env.example` to `.env.local` and fill in your project values:
+  - `VITE_SUPABASE_URL=...`
+  - `VITE_SUPABASE_ANON_KEY=...`
+  - `VITE_SUPABASE_SCHEMA=productivity` (optional; this is the default)
+
+4) Run the app
+- `npm install`
+- `npm run dev`
+
+Notes
+- The client is created with `createClient(url, key, { db: { schema } })`. If you prefer using the `public` schema instead, set `VITE_SUPABASE_SCHEMA=public`.
+- Row Level Security is not enabled by default in `schema.sql`. If you enable Auth and RLS, add `owner_id` columns and policies accordingly.
