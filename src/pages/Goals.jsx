@@ -99,15 +99,15 @@ export default function Goals({ state, actions, navigate }) {
           display: 'flex',
           gap: 12,
           alignItems: 'center',
-          marginBottom: 16,
-          padding: 10,
+          marginBottom: 28,
+          padding: 18,
           border: '1px solid var(--border)',
-          borderRadius: 12,
+          borderRadius: 16,
           background: 'var(--surface-elev)',
           boxShadow: '0 1px 3px rgba(15,23,42,0.08)'
         }}
       >
-        <div style={{ fontSize: 24, fontWeight: 700 }}>Goals</div>
+        <div style={{ fontSize: 34, fontWeight: 900 }}>Goals</div>
         <button onClick={() => navigate('planner')} style={{ marginLeft: 'auto' }}>
           Planner
         </button>
@@ -116,27 +116,32 @@ export default function Goals({ state, actions, navigate }) {
 
       {!categoryId && (
         <div>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(540px, 1fr))', gap: 24 }}>
             {categories.map(c => (
               <div
                 key={c.id}
                 onClick={() => setCategoryId(c.id)}
                 style={{
                   border: '1px solid var(--border)',
-                  padding: 16,
-                  borderRadius: 12,
+                  padding: 28,
+                  borderRadius: 18,
                   cursor: 'pointer',
-                  background: 'var(--surface)',
-                  boxShadow: '0 1px 2px rgba(15,23,42,0.06)',
-                  transition: 'transform 120ms ease, box-shadow 120ms ease'
+                  background: 'linear-gradient(160deg, rgba(var(--primary-rgb),0.06), rgba(255,255,255,0.9))',
+                  boxShadow: '0 6px 22px rgba(var(--primary-rgb),0.12)',
+                  transition: 'transform 160ms ease, box-shadow 160ms ease, background 160ms ease',
+                  fontSize: 22,
+                  fontWeight: 700,
+                  minHeight: 160
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.transform = 'translateY(-1px)'
-                  e.currentTarget.style.boxShadow = '0 6px 14px rgba(15,23,42,0.10)'
+                  e.currentTarget.style.transform = 'translateY(-4px) scale(1.01)'
+                  e.currentTarget.style.boxShadow = '0 24px 60px rgba(var(--primary-rgb),0.20)'
+                  e.currentTarget.style.background = 'linear-gradient(160deg, rgba(var(--primary-rgb),0.10), rgba(255,255,255,0.95))'
                 }}
                 onMouseLeave={e => {
                   e.currentTarget.style.transform = ''
-                  e.currentTarget.style.boxShadow = '0 1px 2px rgba(15,23,42,0.06)'
+                  e.currentTarget.style.boxShadow = '0 6px 22px rgba(var(--primary-rgb),0.12)'
+                  e.currentTarget.style.background = 'linear-gradient(160deg, rgba(var(--primary-rgb),0.06), rgba(255,255,255,0.9))'
                 }}
               >
                 {c.name}
@@ -179,7 +184,7 @@ export default function Goals({ state, actions, navigate }) {
           <button onClick={() => setCategoryId(null)} style={{ marginBottom: 12 }}>
             ← Back to Categories
           </button>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(540px, 1fr))', gap: 24 }}>
             {goals
               .filter(g => g.categoryId === categoryId)
               .map(g => (
@@ -188,20 +193,25 @@ export default function Goals({ state, actions, navigate }) {
                   onClick={() => setGoalId(g.id)}
                   style={{
                     border: '1px solid var(--border)',
-                    padding: 12,
-                    borderRadius: 12,
+                    padding: 24,
+                    borderRadius: 18,
                     cursor: 'pointer',
-                    background: 'var(--surface)',
-                    boxShadow: '0 1px 2px rgba(15,23,42,0.06)',
-                    transition: 'transform 120ms ease, box-shadow 120ms ease'
+                    background: 'linear-gradient(160deg, rgba(var(--primary-rgb),0.06), rgba(255,255,255,0.9))',
+                    boxShadow: '0 6px 22px rgba(var(--primary-rgb),0.12)',
+                    transition: 'transform 160ms ease, box-shadow 160ms ease, background 160ms ease',
+                    fontSize: 22,
+                    fontWeight: 700,
+                    minHeight: 140
                   }}
                   onMouseEnter={e => {
-                    e.currentTarget.style.transform = 'translateY(-1px)'
-                    e.currentTarget.style.boxShadow = '0 6px 14px rgba(15,23,42,0.10)'
+                    e.currentTarget.style.transform = 'translateY(-4px) scale(1.01)'
+                    e.currentTarget.style.boxShadow = '0 24px 60px rgba(var(--primary-rgb),0.20)'
+                    e.currentTarget.style.background = 'linear-gradient(160deg, rgba(var(--primary-rgb),0.10), rgba(255,255,255,0.95))'
                   }}
                   onMouseLeave={e => {
                     e.currentTarget.style.transform = ''
-                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(15,23,42,0.06)'
+                    e.currentTarget.style.boxShadow = '0 6px 22px rgba(var(--primary-rgb),0.12)'
+                    e.currentTarget.style.background = 'linear-gradient(160deg, rgba(var(--primary-rgb),0.06), rgba(255,255,255,0.9))'
                   }}
                 >
                   {g.title}
@@ -253,36 +263,37 @@ export default function Goals({ state, actions, navigate }) {
                 setNewTask('')
               }
             }}
-            style={{ marginBottom: 12 }}
+            style={{ marginBottom: 20 }}
           >
             <input
               value={newTask}
               onChange={e => setNewTask(e.target.value)}
               placeholder="New task"
+              maxLength={120}
             />
             <button type="submit" style={{ marginLeft: 8 }}>Add</button>
           </form>
-          <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(620px, 1fr))', gap: 24 }}>
             {tasksForGoal.map(t => (
               <div
                 key={t.id}
                 style={{
                   border: '1px solid var(--border)',
-                  borderRadius: 12,
-                  padding: 12,
-                  marginBottom: 8,
-                  background: 'var(--surface)',
-                  boxShadow: '0 1px 2px rgba(15,23,42,0.06)'
+                  borderRadius: 16,
+                  padding: 22,
+                  marginBottom: 0,
+                  background: 'linear-gradient(160deg, rgba(var(--primary-rgb),0.04), rgba(255,255,255,0.96))',
+                  boxShadow: '0 6px 22px rgba(var(--primary-rgb),0.10)'
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>{t.title}</div>
+                  <div style={{ fontSize: 20, fontWeight: 800 }}>{t.title}</div>
                   <button onClick={() => setOpenTaskId(t.id)}>Edit</button>
                 </div>
                 {(t.subtasks || []).length > 0 && (
-                  <ul style={{ marginTop: 8 }}>
+                  <ul style={{ marginTop: 12 }}>
                     {(t.subtasks || []).map(s => (
-                      <li key={s.id} style={{ opacity: s.done ? 0.6 : 1 }}>{s.title}</li>
+                      <li key={s.id} style={{ opacity: s.done ? 0.6 : 1, fontSize: 16 }}>{s.title}</li>
                     ))}
                   </ul>
                 )}

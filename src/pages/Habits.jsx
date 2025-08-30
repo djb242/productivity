@@ -42,13 +42,13 @@ export default function Habits({ state, actions, navigate }) {
         onClick={() => toggle(t.id, k)}
         title={k}
         style={{
-          width: 18,
-          height: 18,
-          borderRadius: 4,
-          border: '1px solid var(--border)',
-          background: checked ? 'var(--primary)' : '#fff',
-          boxShadow: checked ? '0 1px 2px rgba(15,23,42,0.06)' : '0 1px 2px rgba(15,23,42,0.04) inset',
-          transition: 'background 120ms ease, transform 120ms ease, box-shadow 120ms ease',
+          width: 28,
+          height: 28,
+          borderRadius: 6,
+          border: '2px solid var(--border)',
+          background: checked ? 'linear-gradient(160deg, var(--primary), var(--primary-700))' : '#fff',
+          boxShadow: checked ? '0 6px 16px rgba(var(--primary-rgb),0.22)' : '0 1px 3px rgba(15,23,42,0.06) inset',
+          transition: 'background 160ms ease, transform 160ms ease, box-shadow 160ms ease',
           cursor: 'pointer'
         }}
       />
@@ -57,12 +57,12 @@ export default function Habits({ state, actions, navigate }) {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)', padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, padding: 10, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface-elev)', boxShadow: '0 1px 3px rgba(15,23,42,0.08)' }}>
-        <div style={{ fontSize: 24, fontWeight: 700 }}>Habits</div>
+      <header style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, padding: 14, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface-elev)', boxShadow: '0 1px 3px rgba(15,23,42,0.08)' }}>
+        <div style={{ fontSize: 28, fontWeight: 800 }}>Habits</div>
         <button onClick={() => navigate('planner')} style={{ marginLeft: 'auto' }}>Back to Planner</button>
       </header>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
         <button onClick={() => setAnchor(a => addDays(a, -1))}>{'←'}</button>
         <button onClick={() => setAnchor(startOfDay(new Date()))} style={{ background: 'linear-gradient(180deg, var(--primary), var(--primary-700))', color: '#fff', borderColor: 'transparent' }}>Today</button>
         <button onClick={() => setAnchor(a => addDays(a, 1))}>{'→'}</button>
@@ -79,17 +79,17 @@ export default function Habits({ state, actions, navigate }) {
       )}
 
       {tracked.length > 0 && (
-        <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 12, overflowX: 'auto', background: 'var(--surface)', boxShadow: '0 1px 3px rgba(15,23,42,0.08)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: `240px repeat(${keys.length}, 22px) 80px`, alignItems: 'center', gap: 8 }}>
-            <div style={{ fontWeight: 600 }}>Task</div>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 14, padding: 16, overflowX: 'auto', background: 'var(--surface)', boxShadow: '0 1px 3px rgba(15,23,42,0.08)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `280px repeat(${keys.length}, 30px) 100px`, alignItems: 'center', gap: 10 }}>
+            <div style={{ fontWeight: 800, fontSize: 18 }}>Task</div>
             {dates.map((d,i) => (
-              <div key={i} style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>{d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</div>
+              <div key={i} style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600, textAlign: 'center' }}>{d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</div>
             ))}
-            <div style={{ fontWeight: 600, textAlign: 'center' }}>Rate</div>
+            <div style={{ fontWeight: 800, textAlign: 'center' }}>Rate</div>
 
             {tracked.map(t => (
               <React.Fragment key={t.id}>
-                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</div>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 16, fontWeight: 700 }}>{t.title}</div>
                 {keys.map(k => (
                   <div key={k} style={{ display: 'flex', justifyContent: 'center' }}>
                     {cell(t, k)}

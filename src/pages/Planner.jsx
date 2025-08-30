@@ -1,9 +1,12 @@
 import React, { useCallback, useMemo, useState, useEffect } from 'react'
 import { occursOnDate } from '../lib/schedule'
+import TaskDrawer from '../components/TaskDrawer.jsx'
+import { db } from '../lib/db.js'
 
 export default function Planner({ state, actions, navigate }) {
   const { tasks, schedules } = state
-  const { setTasks } = actions
+  const { setTasks, setSchedules } = actions
+  const [openTaskId, setOpenTaskId] = useState(null)
 
   const scheduleFor = useCallback(
     taskId => schedules.find(s => s.taskId === taskId) || null,
@@ -38,7 +41,8 @@ export default function Planner({ state, actions, navigate }) {
 
   const [resolution, setResolution] = useState(60) // minutes per slot
   const totalSlots = 24 * (60 / resolution)
-  const slotHeight = (40 * resolution) / 60
+  const hourHeight = 72 // px per hour for a bold, roomy timeline
+  const slotHeight = (hourHeight * resolution) / 60
   const timeGutter = 56 // px reserved for hour labels inside each day
   const itemInsetLeft = timeGutter // boxes start just right of time labels
   const itemInsetRight = 12 // keep slight right margin
@@ -65,6 +69,8 @@ export default function Planner({ state, actions, navigate }) {
   const [hover, setHover] = useState(null) // { day, slot }
   const [dragPreview, setDragPreview] = useState(null) // { item, day, slot }
   const [resizing, setResizing] = useState(null)
+
+  const parentTaskIdFromItemId = id => (String(id).includes('::') ? String(id).split('::')[0] : id)
 
   // persist scheduled items locally so day movements show correctly across sessions
   useEffect(() => {
@@ -137,6 +143,61 @@ export default function Planner({ state, actions, navigate }) {
     )
   }
 
+  const removeScheduled = id => {
+    setScheduled(prev => prev.filter(si => si.item.id !== id))
+  }
+
+  // Task/ Schedule editing for the drawer
+  const updateTask = (id, patch) =>
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, ...patch } : t)))
+  const toggleSubtask = (tid, sid) =>
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === tid
+          ? {
+              ...t,
+              subtasks: (t.subtasks || []).map(s => (s.id === sid ? { ...s, done: !s.done } : s))
+            }
+          : t
+      )
+    )
+  const addSubtask = (tid, title) =>
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === tid
+          ? {
+              ...t,
+              subtasks: [...(t.subtasks || []), { id: Math.random().toString(36).slice(2), title, done: false }]
+            }
+          : t
+      )
+    )
+  const renameSubtask = (tid, sid, title) =>
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === tid
+          ? {
+              ...t,
+              subtasks: (t.subtasks || []).map(s => (s.id === sid ? { ...s, title } : s))
+            }
+          : t
+      )
+    )
+  const deleteTask = id => {
+    setTasks(prev => prev.filter(t => t.id !== id))
+    setScheduled(prev => prev.filter(si => parentTaskIdFromItemId(si.item.id) !== id))
+    db.deleteTaskCascade(id).catch(() => {})
+    setOpenTaskId(null)
+  }
+  const upsertScheduleForTask = (tid, patch) => {
+    setSchedules(prev => {
+      const ex = prev.find(s => s.taskId === tid)
+      if (ex) return prev.map(s => (s.taskId === tid ? { ...ex, ...patch } : s))
+      return [...prev, { id: Math.random().toString(36).slice(2), taskId: tid, ...patch }]
+    })
+    db.upsertScheduleForTask(tid, patch).catch(() => {})
+  }
+
   const markComplete = (data, dayKeyOverride = null) => {
     const logKey = dayKeyOverride || (new Date()).toLocaleDateString('en-CA')
     setTasks(prev =>
@@ -185,8 +246,8 @@ export default function Planner({ state, actions, navigate }) {
         margin: '0 auto'
       }}
     >
-      <header style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, padding: 10, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface-elev)', boxShadow: '0 1px 3px rgba(15,23,42,0.08)' }}>
-        <div style={{ fontSize: 24, fontWeight: 700 }}>Planner</div>
+      <header style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 24, padding: 16, border: '1px solid var(--border)', borderRadius: 16, background: 'var(--surface-elev)', boxShadow: '0 1px 3px rgba(15,23,42,0.08)' }}>
+        <div style={{ fontSize: 32, fontWeight: 800 }}>Planner</div>
         <button onClick={() => navigate('habits')} style={{ marginLeft: 'auto' }}>
           Habits
         </button>
@@ -195,7 +256,7 @@ export default function Planner({ state, actions, navigate }) {
         </button>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20 }}>
         <aside
           style={{
             border: '1px solid var(--border)',
@@ -205,7 +266,7 @@ export default function Planner({ state, actions, navigate }) {
             boxShadow: '0 1px 3px rgba(15,23,42,0.08)'
           }}
         >
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>Today’s items</div>
+          <div style={{ fontWeight: 800, marginBottom: 12, fontSize: 20 }}>Today's Items</div>
           {items.length === 0 && <div style={{ opacity: 0.8 }}>No eligible items today.</div>}
           {items.map(it => (
             <div
@@ -220,11 +281,26 @@ export default function Planner({ state, actions, navigate }) {
                 setHover(null)
               }}
               style={{
-                border: '1px solid #000',
-                borderRadius: 10,
-                padding: 8,
-                marginBottom: 8,
-                cursor: 'grab'
+                border: '1px solid var(--border)',
+                borderRadius: 14,
+                padding: 14,
+                marginBottom: 10,
+                cursor: 'grab',
+                background: 'linear-gradient(180deg,#ffffff,#eaf1ff)',
+                boxShadow: '0 2px 6px rgba(var(--primary-rgb),0.10)',
+                transition: 'transform 140ms ease, box-shadow 140ms ease, background 140ms ease',
+                fontSize: 18,
+                fontWeight: 600
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'translateY(-2px) scale(1.01)'
+                e.currentTarget.style.boxShadow = '0 14px 28px rgba(var(--primary-rgb),0.18)'
+                e.currentTarget.style.background = 'linear-gradient(180deg,#ffffff,#deebff)'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = ''
+                e.currentTarget.style.boxShadow = '0 2px 6px rgba(var(--primary-rgb),0.10)'
+                e.currentTarget.style.background = 'linear-gradient(180deg,#ffffff,#eaf1ff)'
               }}
             >
               {it.title}
@@ -278,12 +354,12 @@ export default function Planner({ state, actions, navigate }) {
             />
           </div>
           {/* Headers: day names */}
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(3, 1fr)`, gap: 12, marginBottom: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(3, 1fr)`, gap: 12, marginBottom: 12 }}>
             {dayDates.map((d, di) => {
               const isToday = dateKey(d) === todayKey
               const label = isToday ? `Today — ${formatDayHeader(d)}` : formatDayHeader(d)
               return (
-                <div key={di} style={{ fontWeight: 700, textAlign: 'center', color: isToday ? 'var(--primary)' : undefined }}>{label}</div>
+                <div key={di} style={{ fontWeight: 800, fontSize: 18, textAlign: 'center', color: isToday ? 'var(--primary)' : undefined }}>{label}</div>
               )
             })}
           </div>
@@ -336,8 +412,9 @@ export default function Planner({ state, actions, navigate }) {
                             paddingRight: 6,
                             textAlign: 'right',
                             top: 0,
-                            fontSize: 12,
-                            color: 'var(--muted)',
+                            fontSize: 14,
+                            color: 'var(--text)',
+                            fontWeight: 600,
                             pointerEvents: 'none'
                           }}
                         >
@@ -381,31 +458,73 @@ export default function Planner({ state, actions, navigate }) {
                   padding: 6,
                   overflow: 'hidden',
                   zIndex: 1,
-                  boxShadow: '0 10px 22px rgba(79,70,229,0.25)',
+                  boxShadow: '0 10px 22px rgba(var(--primary-rgb),0.25)',
                   transition: 'transform 120ms ease, box-shadow 120ms ease'
                 }}
-                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 14px 28px rgba(79,70,229,0.3)' }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 10px 22px rgba(79,70,229,0.25)' }}
+                onClick={() => setOpenTaskId(parentTaskIdFromItemId(si.item.id))}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 14px 28px rgba(var(--primary-rgb),0.30)' }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 10px 22px rgba(var(--primary-rgb),0.25)' }}
               >
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
+                    overflow: 'hidden'
                   }}    
                 >
                   <input
                     type="checkbox"
                     onChange={() => markComplete(si.item, dayKeys[dayIndex])}
-                    style={{ margin: 0 }}
+                    style={{ margin: 0, width: 18, height: 18 }}
+                    title="Mark complete"
+                    onClick={e => e.stopPropagation()}
                   />
-                  <span>
-                    {timeLabel(si.start / (resolution / 15))} – {si.item.title}
+                  <span
+                    title={`${timeLabel(si.start / (resolution / 15))} — ${si.item.title}`}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-word',
+                      overflow: 'hidden',
+                      display: '-webkit-box',
+                      WebkitBoxOrient: 'vertical',
+                      WebkitLineClamp: Math.max(1, Math.min(3, Math.floor((durationUnits * (slotHeight / (resolution / 15))) / (Math.max(12, Math.min(18, Math.floor((durationUnits * (slotHeight / (resolution / 15))) * 0.33))) * 1.2)))) ,
+                      fontSize: Math.max(12, Math.min(18, Math.floor((durationUnits * (slotHeight / (resolution / 15))) * 0.33))),
+                      lineHeight: 1.15,
+                      fontWeight: 700,
+                      paddingRight: 28
+                    }}
+                  >
+                    {timeLabel(si.start / (resolution / 15))} — {si.item.title}
                   </span>
                 </div>
+                <button
+                  onClick={e => { e.stopPropagation(); removeScheduled(si.item.id) }}
+                  title="Remove from planner"
+                  aria-label="Remove from planner"
+                  style={{
+                    position: 'absolute',
+                    top: 4,
+                    right: 6,
+                    width: 22,
+                    height: 22,
+                    borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.28)',
+                    color: '#fff',
+                    border: '1px solid rgba(255,255,255,0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 14,
+                    lineHeight: 1,
+                    cursor: 'pointer',
+                    zIndex: 2
+                  }}
+                >
+                  ✕
+                </button>
                 <div
                   onMouseDown={e => startResize(e, si.item.id)}
                   style={{
@@ -413,7 +532,7 @@ export default function Planner({ state, actions, navigate }) {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    height: 6,
+                    height: 8,
                     cursor: 'ns-resize',
                     background: 'rgba(255,255,255,0.35)'
                   }}
@@ -440,7 +559,7 @@ export default function Planner({ state, actions, navigate }) {
                   top: previewTop,
                   height: previewHeight,
                   boxSizing: 'border-box',
-                  background: 'rgba(79,70,229,0.25)',
+                  background: 'rgba(var(--primary-rgb),0.25)',
                   borderRadius: 6,
                   padding: 4,
                   pointerEvents: 'none',
@@ -459,6 +578,19 @@ export default function Planner({ state, actions, navigate }) {
           </div>
         </main>
       </div>
+      {openTaskId && (
+        <TaskDrawer
+          task={tasks.find(t => t.id === openTaskId)}
+          schedule={scheduleFor(openTaskId)}
+          onClose={() => setOpenTaskId(null)}
+          onPatch={patch => updateTask(openTaskId, patch)}
+          onToggleSub={sid => toggleSubtask(openTaskId, sid)}
+          onAddSub={title => addSubtask(openTaskId, title)}
+          onRenameSub={(sid, title) => renameSubtask(openTaskId, sid, title)}
+          onDelete={() => deleteTask(openTaskId)}
+          onSaveSchedule={patch => upsertScheduleForTask(openTaskId, patch)}
+        />
+      )}
     </div>
   )
 }

@@ -33,14 +33,19 @@ export default function TaskDrawer({
   onPatch,
   onToggleSub,
   onAddSub,
+  onRenameSub,
   onDelete,
   onSaveSchedule
 }) {
   const [title, setTitle] = useState(task.title)
+  const [notes, setNotes] = useState(task.description || '')
   const [newSub, setNewSub] = useState('')
 
   const commit = () => {
-    if (title !== task.title) onPatch({ title })
+    const patch = {}
+    if (title !== task.title) patch.title = title
+    if ((notes || '') !== (task.description || '')) patch.description = notes
+    if (Object.keys(patch).length) onPatch(patch)
   }
 
   const submitSub = e => {
@@ -66,22 +71,45 @@ export default function TaskDrawer({
             value={title}
             onChange={e => setTitle(e.target.value)}
             onBlur={commit}
+            maxLength={120}
             style={{ width: '100%', padding: 6, borderRadius: 6 }}
+          />
+        </div>
+
+        <div style={styles.section}>
+          <label style={{ display: 'block', fontSize: 12, opacity: 0.8 }}>
+            Notes
+          </label>
+          <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            onBlur={commit}
+            placeholder="Add notes for this task..."
+            rows={6}
+            style={{ width: '100%', padding: 8, borderRadius: 8, resize: 'vertical' }}
           />
         </div>
 
           <div style={styles.section}>
           <div style={{ fontWeight: 600, marginBottom: 4 }}>Subtasks</div>
           {(task.subtasks || []).map(s => (
-            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <input
                 type="checkbox"
                 checked={s.done}
                 onChange={() => onToggleSub(s.id)}
               />
-              <button type="submit" style={{ marginLeft: 8 }}>
-                Add
-              </button>
+              <span
+                title={s.title}
+                style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                onDoubleClick={() => {
+                  if (!onRenameSub) return
+                  const t = prompt('Rename subtask', s.title)
+                  if (t && t !== s.title) onRenameSub(s.id, t)
+                }}
+              >
+                {s.title}
+              </span>
             </div>
           ))}
           <form onSubmit={submitSub} style={{ marginTop: 4 }}>
