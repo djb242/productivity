@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { db } from '../lib/db'
+import Nav from '../components/Nav.jsx'
 
 export default function Habits({ state, actions, navigate }) {
   const { tasks } = state
@@ -56,11 +57,8 @@ export default function Habits({ state, actions, navigate }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)', padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, padding: 14, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface-elev)', boxShadow: '0 1px 3px rgba(15,23,42,0.08)' }}>
-        <div style={{ fontSize: 28, fontWeight: 800 }}>Habits</div>
-        <button onClick={() => navigate('planner')} style={{ marginLeft: 'auto' }}>Back to Planner</button>
-      </header>
+    <div className="min-h-screen max-w-6xl mx-auto px-4 py-6">
+      <Nav active="habits" navigate={navigate} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
         <button onClick={() => setAnchor(a => addDays(a, -1))}>{'←'}</button>

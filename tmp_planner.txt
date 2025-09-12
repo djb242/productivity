@@ -1,10 +1,7 @@
-﻿import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react'
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import { occursOnDate } from '../lib/schedule'
 import TaskDrawer from '../components/TaskDrawer.jsx'
 import { db } from '../lib/db.js'
-import { parseIcsOccurrences } from '../lib/ics.js'
-
-import Nav from '../components/Nav.jsx'
 
 export default function Planner({ state, actions, navigate }) {
   const { tasks, schedules } = state
@@ -69,95 +66,11 @@ export default function Planner({ state, actions, navigate }) {
     d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
   const todayKey = dateKey(startOfDay(new Date()))
 
-  // Proxy auto-detection: dev uses /api/proxy-ics; Bluehost can use /proxy-ics.php
-  const proxyCandidates = useMemo(() => {
-    const p = (import.meta?.env && import.meta.env.VITE_ICS_PROXY_PATH) || '/api/proxy-ics'
-    return Array.from(new Set([p, '/proxy-ics.php']))
-  }, [])
-  const selectedProxyRef = useRef(null)
-  const fetchViaProxy = useCallback(async (targetUrl, init = {}) => {
-    const list = selectedProxyRef.current ? [selectedProxyRef.current] : proxyCandidates
-    let lastErr = null
-    for (const base of list) {
-      try {
-        const res = await fetch(`${base}?url=${encodeURIComponent(targetUrl)}`, init)
-        if (res.ok) { selectedProxyRef.current = base; return res }
-        lastErr = new Error(`HTTP ${res.status}`)
-      } catch (e) {
-        lastErr = e
-      }
-    }
-    throw lastErr || new Error('Proxy failed')
-  }, [proxyCandidates])
-
   // scheduled items stored at 15 min granularity
   const [scheduled, setScheduled] = useState([]) // { item, date, start, duration }
   const [hover, setHover] = useState(null) // { day, slot }
   const [dragPreview, setDragPreview] = useState(null) // { item, day, slot }
   const [resizing, setResizing] = useState(null)
-
-  // External calendar integration (ICS feeds)
-  // source: { id, name, url, color, enabled }
-  const [calendarSources, setCalendarSources] = useState(() => {
-    try {
-      const raw = localStorage.getItem('planner.calendars.v1')
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) return parsed
-      }
-    } catch (e) {}
-    return []
-  })
-  useEffect(() => {
-    try { localStorage.setItem('planner.calendars.v1', JSON.stringify(calendarSources)) } catch (e) {}
-  }, [calendarSources])
-  const normalizeIcsUrl = (u) => {
-    if (!u) return ''
-    return String(u).replace(/^webcal:/i, 'https:').replace(/^http:/i, 'https:')
-  }
-  const addCalendarSource = (src) => {
-    setCalendarSources(prev => [...prev, { id: Math.random().toString(36).slice(2), enabled: true, color: '#8b5cf6', ...src, url: normalizeIcsUrl(src.url || '') }])
-  }
-  const updateCalendarSource = (id, patch) => {
-    const p = { ...patch }
-    if (Object.prototype.hasOwnProperty.call(p, 'url')) {
-      p.url = normalizeIcsUrl(p.url)
-    }
-    setCalendarSources(prev => prev.map(s => s.id === id ? { ...s, ...p } : s))
-  }
-  const removeCalendarSource = (id) => {
-    setCalendarSources(prev => prev.filter(s => s.id !== id))
-  }
-
-  // Expanded events mapped per dayKey
-  // { [dayKey]: Array<{ id, title, startUnits, durationUnits, color, allDay }>} 
-  const [calendarEventsByDay, setCalendarEventsByDay] = useState({})
-  const [calendarStatus, setCalendarStatus] = useState({}) // id -> { state: 'idle'|'loading'|'ok'|'error'|'finding', message?: string }
-
-  const jumpToNextEvent = async (src) => {
-    try {
-      setCalendarStatus(prev => ({ ...prev, [src.id]: { state: 'finding', message: 'searching…' } }))
-      const from = new Date(dayDates[dayDates.length - 1].getTime())
-      const to = new Date(from.getTime() + 60 * 24 * 60 * 60 * 1000) // next 60 days
-      const res = await fetchViaProxy(normalizeIcsUrl(src.url))
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`)
-      }
-      const text = await res.text()
-      const occ = parseIcsOccurrences(text, from, to)
-      const upcoming = occ
-        .filter(o => o.start >= from)
-        .sort((a, b) => a.start - b.start)
-      if (upcoming.length) {
-        setAnchorDate(startOfDay(upcoming[0].start))
-        setCalendarStatus(prev => ({ ...prev, [src.id]: { state: 'ok', message: `jumped to ${upcoming[0].start.toLocaleDateString()}` } }))
-      } else {
-        setCalendarStatus(prev => ({ ...prev, [src.id]: { state: 'ok', message: 'no upcoming in 60 days' } }))
-      }
-    } catch (e) {
-      setCalendarStatus(prev => ({ ...prev, [src.id]: { state: 'error', message: String(e?.message || e) } }))
-    }
-  }
 
   const parentTaskIdFromItemId = id => (String(id).includes('::') ? String(id).split('::')[0] : id)
 
@@ -176,86 +89,6 @@ export default function Planner({ state, actions, navigate }) {
       localStorage.setItem('planner.scheduled.v1', JSON.stringify(scheduled))
     } catch (e) {}
   }, [scheduled])
-
-  // Fetch and expand ICS events for visible range whenever sources or anchorDate change
-  useEffect(() => {
-    const controller = new AbortController()
-    const run = async () => {
-      const enabled = calendarSources.filter(s => s.enabled && s.url)
-      if (!enabled.length) { setCalendarEventsByDay({}); return }
-      const start = dayDates[0]
-      const end = new Date(dayDates[dayDates.length - 1].getTime() + 24 * 60 * 60 * 1000)
-      const byDay = {}
-
-      const addEvtToDay = (d, evt, color) => {
-        const key = dateKey(d)
-        const startOfD = startOfDay(d)
-        const endOfD = new Date(startOfD.getTime() + 24 * 60 * 60 * 1000)
-        const evStart = new Date(Math.max(evt.start.getTime(), startOfD.getTime()))
-        const evEnd = new Date(Math.min(evt.end.getTime(), endOfD.getTime()))
-        let startUnits = Math.floor(((evStart.getHours() * 60 + evStart.getMinutes()) / 15))
-        let durationUnits = Math.max(1, Math.ceil(((evEnd - evStart) / (1000 * 60)) / 15))
-        if (evt.allDay) {
-          startUnits = 0
-          durationUnits = Math.ceil((24 * 60) / 15)
-        }
-        const item = {
-          id: evt.uid,
-          title: evt.summary,
-          startUnits,
-          durationUnits,
-          color,
-          allDay: !!evt.allDay
-        }
-        byDay[key] = byDay[key] || []
-        byDay[key].push(item)
-      }
-
-      await Promise.all(enabled.map(async (src) => {
-        try {
-          setCalendarStatus(prev => ({ ...prev, [src.id]: { state: 'loading' } }))
-          const targetUrl = normalizeIcsUrl(src.url)
-          const res = await fetchViaProxy(targetUrl, { signal: controller.signal })
-          let text = ''
-          if (!res.ok) {
-            try { text = await res.text() } catch (_) { text = '' }
-            const hint = [
-              `HTTP ${res.status}`,
-              res.headers.get('x-proxy-error') || '',
-              res.headers.get('x-upstream-status') ? `upstream ${res.headers.get('x-upstream-status')}` : '',
-              res.headers.get('x-upstream-host') ? `host ${res.headers.get('x-upstream-host')}` : ''
-            ].filter(Boolean).join(' ')
-            const snippet = text ? ` body: ${text.slice(0, 120)}` : ''
-            throw new Error(hint + snippet)
-          }
-          text = await res.text()
-          const windowStart = new Date(start.getTime() - 24 * 60 * 60 * 1000)
-          const windowEnd = new Date(end.getTime() + 24 * 60 * 60 * 1000)
-          const occ = parseIcsOccurrences(text, windowStart, windowEnd)
-          try {
-            console.debug('ICS parsed', src.name || src.url, 'range', start, '→', end, 'count', occ.length, occ.slice(0, 5))
-          } catch (_) {}
-          for (const e of occ) {
-            for (const d of dayDates) {
-              const dStart = startOfDay(d)
-              const dEnd = new Date(dStart.getTime() + 24*60*60*1000)
-              if (e.end > dStart && e.start < dEnd) {
-                addEvtToDay(d, e, src.color || '#8b5cf6')
-              }
-            }
-          }
-          setCalendarStatus(prev => ({ ...prev, [src.id]: { state: 'ok', message: `${occ.length} in view` } }))
-        } catch (err) {
-          console.warn('Calendar fetch error for', src.name || src.url, err)
-          setCalendarStatus(prev => ({ ...prev, [src.id]: { state: 'error', message: String(err?.message || err) } }))
-        }
-      }))
-
-      setCalendarEventsByDay(byDay)
-    }
-    run()
-    return () => controller.abort()
-  }, [calendarSources, dayDates])
 
   const dropItem = (dayIndex, slotIndex, data) => {
     const start = slotIndex * (resolution / 15)
@@ -420,13 +253,43 @@ export default function Planner({ state, actions, navigate }) {
   }, [])
 
   return (
-    <div className="min-h-screen max-w-6xl mx-auto px-4 py-6">
-      <Nav active="planner" navigate={navigate} />
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--bg)',
+        color: 'var(--text)',
+        padding: 24,
+        maxWidth: 1200,
+        margin: '0 auto'
+      }}
+    >
+      <header style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 24, padding: 16, border: '1px solid var(--border)', borderRadius: 16, background: 'var(--surface-elev)', boxShadow: '0 1px 3px rgba(15,23,42,0.08)' }}>
+        <div style={{ fontSize: 32, fontWeight: 800 }}>Planner</div>
+        <button onClick={() => navigate('habits')} style={{ marginLeft: 'auto' }}>
+          Habits
+        </button>
+        <button onClick={() => navigate('todos')}>
+          Todos
+        </button>
+        <button onClick={() => navigate('goals')}>
+          Back to Goals
+        </button>
+      </header>
 
-      <div className="grid grid-cols-[360px_1fr] gap-5">
+      <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20 }}>
         <aside
-          style={{ position: 'sticky', top: 24, alignSelf: 'start', maxHeight: 'calc(100vh - 48px)', overflow: 'auto' }}
-          className="border border-zinc-200 rounded-xl p-3 bg-white/95 shadow-sm"
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 12,
+            padding: 12,
+            background: 'var(--surface)',
+            boxShadow: '0 1px 3px rgba(15,23,42,0.08)',
+            position: 'sticky',
+            top: 24,
+            alignSelf: 'start',
+            maxHeight: 'calc(100vh - 48px)',
+            overflow: 'auto'
+          }}
         >
           <div style={{ fontWeight: 800, marginBottom: 12, fontSize: 20 }}>Today's Items</div>
           {items.length === 0 && <div style={{ opacity: 0.8 }}>No eligible items today.</div>}
@@ -499,93 +362,6 @@ export default function Planner({ state, actions, navigate }) {
               <option value={30}>30 min</option>
               <option value={15}>15 min</option>
             </select>
-          </div>
-          <div style={{ marginTop: 16 }}>
-            <details>
-              <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Calendars</summary>
-              <div style={{ marginTop: 8 }}>
-                {(calendarSources || []).map(src => (
-                  <div key={src.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 6, alignItems: 'center', marginBottom: 8 }}>
-                    <input type="checkbox" checked={!!src.enabled} onChange={e => updateCalendarSource(src.id, { enabled: e.target.checked })} title="Enable" />
-                    <input
-                      type="text"
-                      value={src.name || ''}
-                      placeholder={src.url}
-                      onChange={e => updateCalendarSource(src.id, { name: e.target.value })}
-                      style={{ width: '100%' }}
-                    />
-                    <input type="color" value={src.color || '#8b5cf6'} onChange={e => updateCalendarSource(src.id, { color: e.target.value })} title="Color" />
-                    <input
-                      type="url"
-                      value={src.url}
-                      onChange={e => updateCalendarSource(src.id, { url: e.target.value })}
-                      placeholder="https://.../calendar.ics"
-                      style={{ gridColumn: '1 / span 2' }}
-                    />
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      {(() => {
-                        const st = calendarStatus[src.id]?.state
-                        const msg = calendarStatus[src.id]?.message
-                        const color = st === 'ok' ? 'var(--primary)' : st === 'error' ? 'var(--danger, #dc2626)' : '#6b7280'
-                        return (
-                          <span style={{ fontSize: 12, color }}>{st ? st : 'idle'}{msg ? ` · ${msg}` : ''}</span>
-                        )
-                      })()}
-                      <button onClick={() => {
-                        const base = selectedProxyRef.current || proxyCandidates[0]
-                        window.open(`${base}?url=${encodeURIComponent(src.url)}`, '_blank')
-                      }} title="Open proxied URL">Test</button>
-                      <button onClick={() => jumpToNextEvent(src)} title="Jump to next event">Next</button>
-                      <button onClick={async () => {
-                        try {
-                          const url = `/api/proxy-ics?url=${encodeURIComponent(src.url)}`
-                          const res = await fetch(url)
-                          const text = await res.text()
-                          const pad = 7 * 24 * 60 * 60 * 1000
-                          const from = new Date(anchorDate.getTime() - pad)
-                          const to = new Date(anchorDate.getTime() + pad)
-                          const occ = parseIcsOccurrences(text, from, to)
-                          const sample = occ
-                            .sort((a,b) => a.start - b.start)
-                            .slice(0, 12)
-                            .map(o => ({ title: o.summary, start: o.start.toISOString(), end: o.end.toISOString(), allDay: !!o.allDay }))
-                          alert(JSON.stringify({ range: [from.toISOString(), to.toISOString()], count: occ.length, sample }, null, 2))
-                        } catch (e) {
-                          alert('Debug failed: ' + (e?.message || e))
-                        }
-                      }} title="Parse wide range and show sample events">Debug</button>
-                      <button onClick={() => removeCalendarSource(src.id)} title="Remove">Remove</button>
-                    </div>
-                  </div>
-                ))}
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <button onClick={() => addCalendarSource({ name: '', url: '', color: '#3b82f6' })}>Add ICS</button>
-                  <button
-                    onClick={() => {
-                      try {
-                        const data = dayDates.map(d => ({
-                          day: formatDayHeader(d),
-                          count: (calendarEventsByDay[dateKey(d)] || []).length,
-                          items: (calendarEventsByDay[dateKey(d)] || []).slice(0, 8).map(ev => ({
-                            title: ev.title,
-                            startUnits: ev.startUnits,
-                            durationUnits: ev.durationUnits,
-                            allDay: ev.allDay
-                          }))
-                        }))
-                        alert(JSON.stringify(data, null, 2))
-                      } catch (_) {}
-                    }}
-                    title="Show parsed events in view"
-                  >
-                    List
-                  </button>
-                </div>
-                <div style={{ fontSize: 12, opacity: 0.8, marginTop: 8 }}>
-                  Tip: Google Calendar → Settings → Integrate calendar → Secret address in iCal format. Outlook/Office 365 → Share/Publish → ICS link.
-                </div>
-              </div>
-            </details>
           </div>
         </aside>
 
@@ -666,23 +442,6 @@ export default function Planner({ state, actions, navigate }) {
                       `repeating-linear-gradient(to bottom, #9ca3af 0, #9ca3af 1px, transparent 1px, transparent ${hourHeight}px)`
                   }}
                 >
-                  {(calendarEventsByDay[dayKeys[dayIndex]]?.length || 0) > 0 && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: itemInsetLeft,
-                        top: 2,
-                        fontSize: 11,
-                        background: 'rgba(99,102,241,0.12)',
-                        color: '#0f172a',
-                        padding: '2px 6px',
-                        borderRadius: 6,
-                        zIndex: 3
-                      }}
-                    >
-                      {calendarEventsByDay[dayKeys[dayIndex]].length} calendar
-                    </div>
-                  )}
                   {Array.from({ length: totalSlots }).map((_, i) => (
                     <div
                       key={i}
@@ -719,40 +478,7 @@ export default function Planner({ state, actions, navigate }) {
                       )}
                     </div>
                   ))}
-                  
-                  {/* External calendar events (read-only) */}
-                  {(calendarEventsByDay[dayKeys[dayIndex]] || []).map((ev, idx) => {
-                    const slotSize = resolution / 15
-                    const unitPx = slotHeight / slotSize
-                    const topPx = ev.startUnits * unitPx
-                    const heightPx = ev.durationUnits * unitPx
-                    return (
-                      <div
-                        key={`cal-${idx}-${ev.id}`}
-                        title={ev.title}
-                        style={{
-                          position: 'absolute',
-                          left: itemInsetLeft,
-                          right: itemInsetRight,
-                          top: topPx,
-                          height: Math.max(14, heightPx),
-                          boxSizing: 'border-box',
-                          background: ev.allDay ? 'linear-gradient(180deg,#f3f4f6,#e5e7eb)' : (ev.color || 'var(--primary-700)'),
-                          color: ev.allDay ? '#111827' : '#fff',
-                          border: '1px solid rgba(0,0,0,0.06)',
-                          borderRadius: 8,
-                          padding: 6,
-                          overflow: 'hidden',
-                          opacity: 0.9,
-                          zIndex: 1
-                        }}
-                      >
-                        <div style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.title}</div>
-                      </div>
-                    )
-                  })}
 
-                  {/* User-scheduled task blocks */}
                   {scheduled.filter(si => si.date === dayKeys[dayIndex]).map(si => {
             const slotSize = resolution / 15 // 15-min units per visual slot
             const unitPx = slotHeight / slotSize // px per 15 minutes
@@ -786,7 +512,7 @@ export default function Planner({ state, actions, navigate }) {
                   borderRadius: 8,
                   padding: 6,
                   overflow: 'hidden',
-                  zIndex: 2,
+                  zIndex: 1,
                   boxShadow: '0 10px 22px rgba(var(--primary-rgb),0.25)',
                   transition: 'transform 120ms ease, box-shadow 120ms ease'
                 }}
@@ -924,5 +650,3 @@ export default function Planner({ state, actions, navigate }) {
     </div>
   )
 }
-
-

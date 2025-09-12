@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import TaskDrawer from '../components/TaskDrawer.jsx'
+import Nav from '../components/Nav.jsx'
 import { db } from '../lib/db.js'
 
 export default function Goals({ state, actions, navigate }) {
@@ -21,21 +22,63 @@ export default function Goals({ state, actions, navigate }) {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, ...patch } : t)))
   const deleteTask = id => {
     setTasks(prev => prev.filter(t => t.id !== id))
+    setSchedules(prev => prev.filter(s => s.taskId !== id))
+    setOpenTaskId(prev => (prev === id ? null : prev))
     db.deleteTaskCascade(id).catch(() => {})
   }
 
-  const addCategory = name =>
-    setCategories(prev => [...prev, { id: rand(), name, color: '#fff' }])
-  const renameCategory = (id, name) =>
+  const addCategory = name => {
+    const cat = { id: rand(), name, color: '#fff' }
+    setCategories(prev => [...prev, cat])
+    db.upsertCategories([cat]).catch(() => {})
+  }
+  const renameCategory = (id, name) => {
     setCategories(prev => prev.map(c => (c.id === id ? { ...c, name } : c)))
+    const c = categories.find(x => x.id === id)
+    if (c) db.upsertCategories([{ id, name, color: c.color }]).catch(() => {})
+  }
 
-  const addGoal = title =>
-    setGoals(prev => [...prev, { id: rand(), categoryId, title }])
-  const renameGoal = (id, title) =>
+  const deleteCategoryCascade = id => {
+    // derive affected goals and tasks
+    const goalIds = goals.filter(g => g.categoryId === id).map(g => g.id)
+    const taskIds = tasks.filter(t => goalIds.includes(t.goalId)).map(t => t.id)
+    // update local state
+    setTasks(prev => prev.filter(t => !taskIds.includes(t.id)))
+    setSchedules(prev => prev.filter(s => !taskIds.includes(s.taskId)))
+    setGoals(prev => prev.filter(g => g.categoryId !== id))
+    setCategories(prev => prev.filter(c => c.id !== id))
+    if (goalId && goalIds.includes(goalId)) setGoalId(null)
+    if (categoryId === id) setCategoryId(null)
+    // best-effort remote cascade
+    db.deleteCategoryCascade(id).catch(() => {})
+  }
+
+  const addGoal = title => {
+    const g = { id: rand(), categoryId, title }
+    setGoals(prev => [...prev, g])
+    db.upsertGoals([g]).catch(() => {})
+  }
+  const renameGoal = (id, title) => {
     setGoals(prev => prev.map(g => (g.id === id ? { ...g, title } : g)))
+    const g = goals.find(x => x.id === id)
+    if (g) db.upsertGoals([{ id, categoryId: g.categoryId, title }]).catch(() => {})
+  }
 
-  const addTask = title =>
-    setTasks(prev => [...prev, { id: rand(), goalId, title }])
+  const deleteGoalCascade = id => {
+    const taskIds = tasks.filter(t => t.goalId === id).map(t => t.id)
+    setTasks(prev => prev.filter(t => t.goalId !== id))
+    setSchedules(prev => prev.filter(s => !taskIds.includes(s.taskId)))
+    setGoals(prev => prev.filter(g => g.id !== id))
+    if (openTaskId && taskIds.includes(openTaskId)) setOpenTaskId(null)
+    if (goalId === id) setGoalId(null)
+    db.deleteGoalCascade(id).catch(() => {})
+  }
+
+  const addTask = title => {
+    const t = { id: rand(), goalId, title }
+    setTasks(prev => [...prev, t])
+    db.upsertTasks([t]).catch(() => {})
+  }
   const renameSubtask = (tid, sid, title) =>
     setTasks(prev =>
       prev.map(t =>
@@ -84,35 +127,8 @@ export default function Goals({ state, actions, navigate }) {
   const tasksForGoal = tasks.filter(t => t.goalId === goalId)
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'var(--bg)',
-        color: 'var(--text)',
-        padding: 24,
-        maxWidth: 1200,
-        margin: '0 auto'
-      }}
-    >
-      <header
-        style={{
-          display: 'flex',
-          gap: 12,
-          alignItems: 'center',
-          marginBottom: 28,
-          padding: 18,
-          border: '1px solid var(--border)',
-          borderRadius: 16,
-          background: 'var(--surface-elev)',
-          boxShadow: '0 1px 3px rgba(15,23,42,0.08)'
-        }}
-      >
-        <div style={{ fontSize: 34, fontWeight: 900 }}>Goals</div>
-        <button onClick={() => navigate('planner')} style={{ marginLeft: 'auto' }}>
-          Planner
-        </button>
-        <button onClick={() => navigate('habits')}>Habits</button>
-      </header>
+    <div className="min-h-screen max-w-6xl mx-auto px-4 py-6">
+      <Nav active="goals" navigate={navigate} />
 
       {!categoryId && (
         <div>
@@ -155,6 +171,17 @@ export default function Goals({ state, actions, navigate }) {
                 >
                   Edit
                 </button>
+                <button
+                  onClick={e => {
+                    e.stopPropagation()
+                    if (confirm('Delete this category and all its goals and tasks?')) {
+                      deleteCategoryCascade(c.id)
+                    }
+                  }}
+                  style={{ marginLeft: 8 }}
+                >
+                  Delete
+                </button>
               </div>
             ))}
           </div>
@@ -184,6 +211,24 @@ export default function Goals({ state, actions, navigate }) {
           <button onClick={() => setCategoryId(null)} style={{ marginBottom: 12 }}>
             ← Back to Categories
           </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>
+              {categories.find(c => c.id === categoryId)?.name || 'Category'}
+            </div>
+            <div>
+              <button
+                onClick={() => {
+                  const c = categories.find(x => x.id === categoryId)
+                  if (!c) return
+                  if (confirm(`Delete category "${c.name}" and all its goals and tasks?`)) {
+                    deleteCategoryCascade(categoryId)
+                  }
+                }}
+              >
+                Delete Category
+              </button>
+            </div>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(540px, 1fr))', gap: 24 }}>
             {goals
               .filter(g => g.categoryId === categoryId)
@@ -225,6 +270,17 @@ export default function Goals({ state, actions, navigate }) {
                   >
                     Edit
                   </button>
+                  <button
+                    onClick={e => {
+                      e.stopPropagation()
+                      if (confirm('Delete this goal and all its tasks?')) {
+                        deleteGoalCascade(g.id)
+                      }
+                    }}
+                    style={{ marginLeft: 8 }}
+                  >
+                    Delete
+                  </button>
                 </div>
               ))}
           </div>
@@ -254,6 +310,24 @@ export default function Goals({ state, actions, navigate }) {
           <button onClick={() => setGoalId(null)} style={{ marginBottom: 12 }}>
             ← Back to Goals
           </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>
+              {goals.find(g => g.id === goalId)?.title || 'Goal'}
+            </div>
+            <div>
+              <button
+                onClick={() => {
+                  const g = goals.find(x => x.id === goalId)
+                  if (!g) return
+                  if (confirm(`Delete goal \"${g.title}\" and all its tasks?`)) {
+                    deleteGoalCascade(goalId)
+                  }
+                }}
+              >
+                Delete Goal
+              </button>
+            </div>
+          </div>
           <form
             onSubmit={e => {
               e.preventDefault()
@@ -288,7 +362,17 @@ export default function Goals({ state, actions, navigate }) {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ fontSize: 20, fontWeight: 800 }}>{t.title}</div>
-                  <button onClick={() => setOpenTaskId(t.id)}>Edit</button>
+                  <div>
+                    <button onClick={() => setOpenTaskId(t.id)}>Edit</button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Delete this task?')) deleteTask(t.id)
+                      }}
+                      style={{ marginLeft: 8 }}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
                 {(t.subtasks || []).length > 0 && (
                   <ul style={{ marginTop: 12 }}>

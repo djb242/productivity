@@ -1,0 +1,38 @@
+## Apache configuration for the built app
+
+# Security hardening
+Options -Indexes
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "DENY"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Set your OpenAI API key as an environment variable (do NOT commit your real key)
+# Replace "YOUR_KEY_HERE" on your server, or set in vhost config.
+SetEnv OPENAI_API_KEY "YOUR_KEY_HERE"
+
+# Some FastCGI stacks only expose REDIRECT_* variables; this preserves it.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Propagate OPENAI_API_KEY to REDIRECT_OPENAI_API_KEY for FastCGI
+  RewriteRule ^ - [E=OPENAI_API_KEY:%{ENV:OPENAI_API_KEY}]
+  # Map clean endpoint to PHP file on Apache hosts
+  RewriteRule ^api/prompt$ /api/prompt.php [L]
+</IfModule>
+
+# Enable diagnostics temporarily (visit /api/prompt.php?diag=1)
+#SetEnv ALLOW_PROMPT_DIAG 1
+
+# Ensure Authorization header is preserved for proxies if needed
+SetEnvIfNoCase ^Authorization$ "(.*)" HTTP_AUTHORIZATION=$1
+
+# If deploying as an SPA, you might need a rewrite to index.html
+# Uncomment if you are not using a CDN/worker to handle SPA fallback
+# <IfModule mod_rewrite.c>
+#   RewriteEngine On
+#   RewriteBase /
+#   RewriteCond %{REQUEST_FILENAME} !-f
+#   RewriteCond %{REQUEST_FILENAME} !-d
+#   RewriteRule ^ index.html [L]
+# </IfModule>

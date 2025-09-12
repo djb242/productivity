@@ -118,6 +118,48 @@ export const db = {
     await supabase.from('schedules').delete().eq('task_id', taskId)
     await supabase.from('tasks').delete().eq('id', taskId)
   },
+  async deleteGoalCascade(goalId) {
+    if (!hasSupabase) return
+    // find tasks under the goal
+    const { data: tasksData } = await supabase
+      .from('tasks')
+      .select('id')
+      .eq('goal_id', goalId)
+    const taskIds = (tasksData || []).map(t => t.id)
+    if (taskIds.length) {
+      await supabase.from('habit_logs').delete().in('task_id', taskIds)
+      await supabase.from('subtasks').delete().in('task_id', taskIds)
+      await supabase.from('schedules').delete().in('task_id', taskIds)
+      await supabase.from('tasks').delete().in('id', taskIds)
+    }
+    await supabase.from('goals').delete().eq('id', goalId)
+  },
+  async deleteCategoryCascade(categoryId) {
+    if (!hasSupabase) return
+    // find goals under the category
+    const { data: goalsData } = await supabase
+      .from('goals')
+      .select('id')
+      .eq('category_id', categoryId)
+
+    const goalIds = (goalsData || []).map(g => g.id)
+    if (goalIds.length) {
+      // find tasks under these goals
+      const { data: tasksData } = await supabase
+        .from('tasks')
+        .select('id')
+        .in('goal_id', goalIds)
+      const taskIds = (tasksData || []).map(t => t.id)
+      if (taskIds.length) {
+        await supabase.from('habit_logs').delete().in('task_id', taskIds)
+        await supabase.from('subtasks').delete().in('task_id', taskIds)
+        await supabase.from('schedules').delete().in('task_id', taskIds)
+        await supabase.from('tasks').delete().in('id', taskIds)
+      }
+      await supabase.from('goals').delete().in('id', goalIds)
+    }
+    await supabase.from('categories').delete().eq('id', categoryId)
+  },
   async upsertScheduleForTask(taskId, patch) {
     if (!hasSupabase) return
     // find existing
@@ -144,4 +186,3 @@ export const db = {
     }
   }
 }
-

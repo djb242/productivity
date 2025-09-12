@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Ignore all .htaccess files by default to prevent committing secrets
+**/.htaccess
+# Keep the template under public tracked
+!public/.htaccess
+
 # Environment files (keep example only)
 .env
 .env*

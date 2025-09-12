@@ -28,3 +28,24 @@ This app can persist data to Supabase. By default it uses a dedicated Postgres s
 Notes
 - The client is created with `createClient(url, key, { db: { schema } })`. If you prefer using the `public` schema instead, set `VITE_SUPABASE_SCHEMA=public`.
 - Row Level Security is not enabled by default in `schema.sql`. If you enable Auth and RLS, add `owner_id` columns and policies accordingly.
+
+## Calendars (Google + Outlook via ICS)
+
+- In Planner, expand the Calendars panel and click Add ICS.
+- Paste your calendar’s ICS URL.
+  - Google Calendar: Settings → Integrate calendar → Secret address in iCal format.
+  - Outlook/Microsoft 365: Calendar → Share/Publish → ICS link.
+- Toggle and color each source; events render read-only on the timeline.
+
+Notes
+- ICS is fetched through a built-in proxy to avoid CORS:
+  - Dev: Vite middleware at `/api/proxy-ics`.
+  - Cloudflare Pages: Worker route at `/api/proxy-ics`.
+- If your org blocks publishing ICS, you may need admin approval.
+
+## OpenAI Prompt API (optional)
+
+- If you use pages that call `/api/prompt` (e.g. Writer tools), deploy the PHP endpoint in `public/api/prompt.php`.
+- Set your OpenAI API key on the server via Apache env var (e.g. in `public/.htaccess`):
+  - `SetEnv OPENAI_API_KEY "sk-..."`
+- Never expose your API key to the client or commit it to source control.
