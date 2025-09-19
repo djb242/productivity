@@ -14,6 +14,7 @@ This app can persist data to Supabase. By default it uses a dedicated Postgres s
 - Open Supabase Studio → SQL editor
 - Paste and run the contents of `supabase/schema.sql`
   - This script creates the `productivity` schema (if missing), sets the search path, and creates all tables and indexes used by the app.
+- Includes an `app_state` table used by the Writer’s Dashboard to save JSON state. It stores a single row (id = `singleton`) and does not require user accounts.
 
 3) Configure environment variables
 - Copy `.env.example` to `.env.local` and fill in your project values:

@@ -56,6 +56,13 @@ create table if not exists habit_logs (
 );
 create index if not exists habit_logs_task_id_idx on habit_logs(task_id);
 
+-- App-wide JSON state for Writer's Dashboard (saves without auth)
+create table if not exists app_state (
+  id text primary key default 'singleton',
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+
 -- Optional: enable RLS and add policies if you add Auth
 -- alter table categories enable row level security;
 -- alter table goals enable row level security;

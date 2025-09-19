@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 const Ctx = createContext(null)
@@ -18,16 +18,53 @@ export function DialogTrigger({ asChild, children }) {
 
 export function DialogContent({ className = '', children, ...rest }) {
   const ctx = useContext(Ctx)
-  const [node, setNode] = React.useState(null)
+  const [node, setNode] = useState(null)
+
   useEffect(() => {
-    const el = document.createElement('div'); document.body.appendChild(el); setNode(el)
-    return () => { document.body.removeChild(el) }
-  }, [])
+    if (!ctx?.open) return
+    const el = document.createElement('div')
+    document.body.appendChild(el)
+    setNode(el)
+    // lock body scroll while open
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e) => { if (e.key === 'Escape') ctx?.onOpenChange?.(false) }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+      document.body.removeChild(el)
+      setNode(null)
+    }
+  }, [ctx?.open])
+
   if (!ctx?.open || !node) return null
   const body = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={()=>ctx?.onOpenChange?.(false)} />
-      <div className={`relative z-10 bg-white rounded-2xl border border-zinc-200 shadow-xl w-[min(680px,calc(100vw-2rem))] ${className}`} {...rest}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        display: 'flex', alignItems: 'center', justifyContent: 'center'
+      }}
+    >
+      <div
+        onClick={() => ctx?.onOpenChange?.(false)}
+        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }}
+      />
+      <div
+        className={className}
+        {...rest}
+        style={{
+          position: 'relative', zIndex: 1,
+          background: '#fff', borderRadius: 16,
+          border: '1px solid rgba(15,23,42,0.12)',
+          boxShadow: '0 20px 60px rgba(2,6,23,0.20)',
+          width: 'min(680px, calc(100vw - 2rem))',
+          maxHeight: 'min(85vh, calc(100vh - 2rem))',
+          overflowY: 'auto'
+        }}
+      >
         {children}
       </div>
     </div>

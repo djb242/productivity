@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
 import { toast } from "sonner";
-import { Plus, Play, Pause, StopCircle, Target, Calendar, TimerReset, Trash2, Wand2, Tag, Search, NotebookPen, Lightbulb, Rocket, BarChart3, ListTodo, Save, UploadCloud, Download, ChevronRight, Edit2 } from "lucide-react";
+import { Plus, Play, Pause, StopCircle, Target, Calendar, TimerReset, Trash2, Wand2, Tag, Search, NotebookPen, Lightbulb, Rocket, BarChart3, ListTodo, Save, UploadCloud, Download, ChevronRight, Edit2, X } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip as RTooltip, CartesianGrid, BarChart, Bar } from "recharts";
 // Use existing Supabase client from the app
 import { supabase } from "../lib/supabaseClient";
@@ -49,7 +49,7 @@ function sum(arr,sel=(x)=>x){ return arr.reduce((a,b)=>a+sel(b),0); }
 // ------------------------------
 // Main App
 // ------------------------------
-export default function WritersDashboard({ userId, navigate }) {
+export default function WritersDashboard({ userId: _userId, navigate }) {
   const initial = useMemo(()=>{
     const d = loadStore();
     return /** @type {{projects: Project[], sessions: Session[], ideas: Idea[], dailyGoal: number}} */ ({
@@ -65,47 +65,53 @@ export default function WritersDashboard({ userId, navigate }) {
   const [ideas, setIdeas] = useState(initial.ideas);
   const [dailyGoal, setDailyGoal] = useState(initial.dailyGoal);
   const [dailyGoalText, setDailyGoalText] = useState(String(initial.dailyGoal));
+  // Track initial cloud load and local mutations to avoid race overwrites
+  const [cloudLoaded, setCloudLoaded] = useState(false);
+  const dirtyRef = useRef(false);
 
-  // Load from Supabase when a user signs in
+  // Load from Supabase (singleton state; no user/device differentiation)
   useEffect(() => {
-    if (!userId) return;
+    if (!supabase) return;
 
     (async () => {
       const { data, error } = await supabase
         .from("app_state")
         .select("data")
-        .eq("user_id", userId)
+        .eq("id", "singleton")
         .single();
 
       // Ignore "no rows" error; anything else log it
       if (error && error.code !== "PGRST116") {
         console.error("cloud load error:", error);
+        setCloudLoaded(true);
         return;
       }
 
       const cloud = data?.data;
-      if (cloud && typeof cloud === "object") {
+      // Only apply cloud if there haven't been local edits since mount
+      if (!dirtyRef.current && cloud && typeof cloud === "object") {
         setProjects(cloud.projects || []);
         setSessions(cloud.sessions || []);
         setIdeas(cloud.ideas || []);
         setDailyGoal(cloud.dailyGoal || 500);
       } else {
-        // optional: create an empty row for this user so future saves are updates
+        // create an empty singleton row so future saves are updates
         await supabase.from("app_state").upsert({
-          user_id: userId,
+          id: "singleton",
           data: { projects: [], sessions: [], ideas: [], dailyGoal: 500 },
           updated_at: new Date().toISOString(),
         });
       }
+      setCloudLoaded(true);
     })();
-  }, [userId]);
+  }, []);
 
 
   useEffect(()=>{ saveStore({ projects, sessions, ideas, dailyGoal }); },[projects,sessions,ideas,dailyGoal]);
 
-  // --- cloud save effect ---
+  // --- cloud save effect (sync once initial cloud load completes) ---
   useEffect(() => {
-    if (!userId) return; // only sync if logged in
+    if (!supabase || !cloudLoaded) return;
 
     const payload = { projects, sessions, ideas, dailyGoal };
 
@@ -113,7 +119,7 @@ export default function WritersDashboard({ userId, navigate }) {
       const { error } = await supabase
         .from("app_state")
         .upsert({
-          user_id: userId,
+          id: "singleton",
           data: payload,
           updated_at: new Date().toISOString(),
         });
@@ -122,7 +128,7 @@ export default function WritersDashboard({ userId, navigate }) {
         console.error("cloud save error:", error);
       }
     })();
-  }, [projects, sessions, ideas, dailyGoal, userId]);
+  }, [projects, sessions, ideas, dailyGoal, cloudLoaded]);
 
 
   // Derived stats
@@ -147,18 +153,19 @@ export default function WritersDashboard({ userId, navigate }) {
   // CRUD Actions
   // ------------------------------
   function addProject(p){
+    dirtyRef.current = true;
     setProjects(prev=>[...prev, { ...p, id: uid(), createdAt: new Date().toISOString(), status: "Drafting" }]);
     toast("Project created");
   }
-  function updateProject(id, patch){ setProjects(prev=>prev.map(p=>p.id===id?{...p,...patch}:p)); }
-  function removeProject(id){ setProjects(prev=>prev.filter(p=>p.id!==id)); toast("Project deleted"); }
+  function updateProject(id, patch){ dirtyRef.current = true; setProjects(prev=>prev.map(p=>p.id===id?{...p,...patch}:p)); }
+  function removeProject(id){ dirtyRef.current = true; setProjects(prev=>prev.filter(p=>p.id!==id)); toast("Project deleted"); }
 
-  function logSession(s){ setSessions(prev=>[...prev, { ...s, id: uid() }]); toast("Session logged"); }
-  function deleteSession(id){ setSessions(prev=>prev.filter(s=>s.id!==id)); }
+  function logSession(s){ dirtyRef.current = true; setSessions(prev=>[...prev, { ...s, id: uid() }]); toast("Session logged"); }
+  function deleteSession(id){ dirtyRef.current = true; setSessions(prev=>prev.filter(s=>s.id!==id)); }
 
-  function addIdea(i){ setIdeas(prev=>[{...i,id:uid(),createdAt:new Date().toISOString()},...prev]); }
-  function updateIdea(id,patch){ setIdeas(prev=>prev.map(i=>i.id===id?{...i,...patch}:i)); }
-  function deleteIdea(id){ setIdeas(prev=>prev.filter(i=>i.id!==id)); }
+  function addIdea(i){ dirtyRef.current = true; setIdeas(prev=>[{...i,id:uid(),createdAt:new Date().toISOString()},...prev]); }
+  function updateIdea(id,patch){ dirtyRef.current = true; setIdeas(prev=>prev.map(i=>i.id===id?{...i,...patch}:i)); }
+  function deleteIdea(id){ dirtyRef.current = true; setIdeas(prev=>prev.filter(i=>i.id!==id)); }
 
   // Export/Import JSON
   function exportJSON(){
@@ -202,7 +209,7 @@ export default function WritersDashboard({ userId, navigate }) {
   },[timerRunning]);
 
   useEffect(()=>{
-    if(timerSeconds<=0){ setTimerRunning(false); setTimerSeconds(0); setAutoOpenLog(true); toast("Timer complete — log your session"); }
+    if(timerSeconds<=0){ setTimerRunning(false); setTimerSeconds(0); setAutoOpenLog(true); toast("Timer complete - log your session"); }
   },[timerSeconds]);
 
   function resetTimer(mins=25){ setTimerRunning(false);startSecondsRef.current = mins*60; setTimerSeconds(mins*60); }
@@ -491,12 +498,15 @@ function NewProjectDialog({ onCreate }){
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button><Plus className="w-4 h-4 mr-2"/>New Project</Button>
-      </DialogTrigger>
+      <Button onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-2"/>New Project</Button>
       <DialogContent className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl">
         <DialogHeader>
-          <DialogTitle>Create Project</DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle>Create Project</DialogTitle>
+            <Button size="icon" variant="ghost" aria-label="Close" onClick={()=>setOpen(false)}>
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
           <DialogDescription>Set goals to track progress and deadlines.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
@@ -513,7 +523,8 @@ function NewProjectDialog({ onCreate }){
             </div>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="justify-between">
+          <Button variant="secondary" onClick={()=>setOpen(false)}>Cancel</Button>
           <Button onClick={create}>Create</Button>
         </DialogFooter>
       </DialogContent>
@@ -826,7 +837,7 @@ function PromptBox(){
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model: "gpt-5",
           messages: [
             {
               role: "system",
@@ -834,11 +845,10 @@ function PromptBox(){
             },
             {
               role: "user",
-              content: "Return exactly one straightforward writing prompt for today.\n- Avoid suggesting specific titles. \n- Avoid memes or internet slang as topics. \n- Keep it short: 1–2 sentences.\n- No explanations, no preamble, just the prompt itself."
+              content: "Return exactly one straightforward writing prompt for today.\n- Avoid memes or internet slang as topics. \n- Keep it short: 1–2 sentences.\n- No explanations, no preamble, just the prompt itself."
             }
           ],
           temperature: 1,
-          max_tokens: 120,
         }),
       });
 
@@ -911,3 +921,4 @@ function PromptBox(){
 }
 
 // Fixed prompt component with valid model/params and offline fallback
+
